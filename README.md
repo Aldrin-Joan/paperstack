@@ -214,7 +214,7 @@ User / LLM Query
 - Python 3.11+
 - pip
 
-### Quick Start
+### Quick Start (Local Source)
 
 ```bash
 # 1. Clone the project
@@ -224,7 +224,7 @@ cd arxiv-mcp
 # 2. Create and activate virtual environment (recommended)
 python -m venv .venv
 source .venv/bin/activate        # macOS/Linux
-.venv\Scripts\activate           # Windows
+.venv\Scripts\activate         # Windows
 
 # 3. Install dependencies
 pip install -r requirements.txt
@@ -234,8 +234,31 @@ cp .env.example .env
 # Edit .env if needed (defaults work out of the box)
 
 # 5. Verify installation
-python tests/test_smoke.py
+python test_smoke.py
 ```
+
+### Install from TestPyPI / PyPI (Recommended for users)
+
+```bash
+# Install package from TestPyPI (for pre-release testing)
+pip install --index-url https://test.pypi.org/simple/ --extra-index-url https://pypi.org/simple arxiv-mcp-aj
+
+# Or install package from production PyPI
+pip install arxiv-mcp-aj
+
+# Check command works
+arxiv-mcp --help
+
+# Run built-in smoke test ✓
+python -m arxiv_mcp  # or `python test_smoke.py` (if source present)
+```
+
+### If you are already on a published version (0.1.3)
+
+- `pip install arxiv-mcp-aj==0.1.3`
+- `arxiv-mcp --help`
+
+---
 
 ### Directory Structure
 

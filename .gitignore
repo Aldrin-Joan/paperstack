@@ -39,7 +39,7 @@ C:\\Users\\**\\AppData\\Roaming\\Code\\User\\mcp.json
 # Local download cache
 downloads/
 **/downloads/
-
+.pypirc
 # Python Environment files
 pip-log.txt
 pip-delete-this-directory.txt
