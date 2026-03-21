@@ -11,25 +11,43 @@ Tools exposed:
 Run with:
   python -m src.mcp_server
 """
+
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import sys
+from pathlib import Path
 from typing import Any
+
+# Ensure we can import local source package when running tests from repository root
+ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ROOT / "src"))
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp import types
 
-from src.arxiv_client import ArxivClient
+from src.arxiv_client import ArxivClient, normalize_arxiv_id, validate_arxiv_id_format
 from src.pdf_fetcher import PDFFetcher
 from src.pdf_parser import PDFParser
 from src.context_builder import ContextBuilder
+from src.models import MAX_CONCURRENT_DOWNLOADS, MAX_CONCURRENT_PARSERS
 from src.logger import get_logger, configure_logging
+from src.maintenance import schedule_periodic_maintenance
 
 configure_logging("INFO")
 log = get_logger("mcp_server")
+
+
+def _sanitize_arxiv_id(arxiv_id: str) -> str:
+    arxiv_id = (arxiv_id or "").strip()
+    if not validate_arxiv_id_format(arxiv_id):
+        raise ValueError(f"Invalid arXiv ID: '{arxiv_id}'")
+    return normalize_arxiv_id(arxiv_id)
+
 
 # ── Instantiate modules ───────────────────────────────────────────────────────
 _arxiv_client = ArxivClient()
@@ -39,8 +57,12 @@ _context_builder = ContextBuilder()
 # ── MCP Server ────────────────────────────────────────────────────────────────
 server = Server("arxiv-mcp")
 
+_download_semaphore = asyncio.Semaphore(MAX_CONCURRENT_DOWNLOADS)
+_parse_semaphore = asyncio.Semaphore(MAX_CONCURRENT_PARSERS)
+
 
 # ── Tool Definitions ──────────────────────────────────────────────────────────
+
 
 @server.list_tools()
 async def list_tools() -> list[types.Tool]:
@@ -157,6 +179,7 @@ async def list_tools() -> list[types.Tool]:
 
 # ── Tool Handlers ─────────────────────────────────────────────────────────────
 
+
 @server.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
     log.info("Tool called", tool=name, args=arguments)
@@ -185,13 +208,20 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
 
 
 async def _handle_search_arxiv(args: dict) -> list[types.TextContent]:
-    query = args["query"]
+    query = (args.get("query") or "").strip()
+    if not query:
+        raise ValueError("query is required for search_arxiv")
+
     max_results = min(int(args.get("max_results", 10)), 50)
 
     results = await _arxiv_client.search(query=query, max_results=max_results)
 
     if not results:
-        payload = {"message": "No papers found for the given query.", "query": query, "results": []}
+        payload = {
+            "message": "No papers found for the given query.",
+            "query": query,
+            "results": [],
+        }
     else:
         payload = {
             "query": query,
@@ -203,7 +233,7 @@ async def _handle_search_arxiv(args: dict) -> list[types.TextContent]:
 
 
 async def _handle_get_paper_by_id(args: dict) -> list[types.TextContent]:
-    arxiv_id = args["arxiv_id"].strip()
+    arxiv_id = _sanitize_arxiv_id(args.get("arxiv_id", ""))
     metadata = await _arxiv_client.get_by_id(arxiv_id)
 
     if metadata is None:
@@ -215,27 +245,32 @@ async def _handle_get_paper_by_id(args: dict) -> list[types.TextContent]:
 
 
 async def _handle_download_pdf(args: dict) -> list[types.TextContent]:
-    arxiv_id = args["arxiv_id"].strip()
+    arxiv_id = _sanitize_arxiv_id(args.get("arxiv_id", ""))
     force = bool(args.get("force", False))
 
-    async with PDFFetcher() as fetcher:
-        result = await fetcher.download(arxiv_id, force=force)
+    async with _download_semaphore:
+        async with PDFFetcher() as fetcher:
+            result = await fetcher.download(arxiv_id, force=force)
 
-    return [types.TextContent(type="text", text=json.dumps(result.model_dump(), indent=2))]
+    return [
+        types.TextContent(type="text", text=json.dumps(result.model_dump(), indent=2))
+    ]
 
 
 async def _handle_extract_text(args: dict) -> list[types.TextContent]:
-    arxiv_id = args["arxiv_id"].strip()
+    arxiv_id = _sanitize_arxiv_id(args.get("arxiv_id", ""))
 
     # Ensure PDF is downloaded first
-    async with PDFFetcher() as fetcher:
-        dl_result = await fetcher.download(arxiv_id)
+    async with _download_semaphore:
+        async with PDFFetcher() as fetcher:
+            dl_result = await fetcher.download(arxiv_id)
 
     if not dl_result.success:
         payload = {"error": dl_result.error, "arxiv_id": arxiv_id}
         return [types.TextContent(type="text", text=json.dumps(payload, indent=2))]
 
-    extracted = _pdf_parser.parse(dl_result.local_path, arxiv_id)
+    async with _parse_semaphore:
+        extracted = _pdf_parser.parse(dl_result.local_path, arxiv_id)
 
     # Serialize — omit full_text in response to keep it manageable
     payload = {
@@ -272,15 +307,20 @@ async def _handle_get_paper_context(args: dict) -> list[types.TextContent]:
         return [types.TextContent(type="text", text=json.dumps(payload, indent=2))]
 
     # 2. Download PDF
-    async with PDFFetcher() as fetcher:
-        dl_result = await fetcher.download(arxiv_id)
+    async with _download_semaphore:
+        async with PDFFetcher() as fetcher:
+            dl_result = await fetcher.download(arxiv_id)
 
     if not dl_result.success:
-        payload = {"error": f"PDF download failed: {dl_result.error}", "arxiv_id": arxiv_id}
+        payload = {
+            "error": f"PDF download failed: {dl_result.error}",
+            "arxiv_id": arxiv_id,
+        }
         return [types.TextContent(type="text", text=json.dumps(payload, indent=2))]
 
     # 3. Parse PDF
-    extracted = _pdf_parser.parse(dl_result.local_path, arxiv_id)
+    async with _parse_semaphore:
+        extracted = _pdf_parser.parse(dl_result.local_path, arxiv_id)
 
     # 4. Build context
     context = _context_builder.build(
@@ -305,14 +345,25 @@ async def _handle_get_paper_context(args: dict) -> list[types.TextContent]:
 
 # ── Entry Point ───────────────────────────────────────────────────────────────
 
+
 async def main() -> None:
     log.info("Starting arxiv-mcp server", version="1.0.0")
-    async with stdio_server() as (read_stream, write_stream):
-        await server.run(
-            read_stream,
-            write_stream,
-            server.create_initialization_options(),
-        )
+
+    # Schedule periodic maintenance in background if needed
+    loop = asyncio.get_running_loop()
+    maintenance_task = schedule_periodic_maintenance()(loop)
+
+    try:
+        async with stdio_server() as (read_stream, write_stream):
+            await server.run(
+                read_stream,
+                write_stream,
+                server.create_initialization_options(),
+            )
+    finally:
+        maintenance_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await maintenance_task
 
 
 if __name__ == "__main__":

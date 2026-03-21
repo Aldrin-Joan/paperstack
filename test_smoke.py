@@ -21,9 +21,9 @@ log = get_logger("smoke_test")
 
 
 async def run():
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("  arxiv-mcp Smoke Test")
-    print("="*60)
+    print("=" * 60)
 
     # ── 1. ID Detection ───────────────────────────────────────────
     print("\n[1] Testing arXiv ID detection...")
@@ -84,9 +84,9 @@ async def run():
     print(f"    Total tokens: {context.total_tokens:,}")
     print(f"    System prompt preview: {context.llm_system_prompt[:100]!r}...")
 
-    print("\n" + "="*60)
+    print("\n" + "=" * 60)
     print("  All smoke tests passed! ✓")
-    print("="*60 + "\n")
+    print("=" * 60 + "\n")
 
 
 if __name__ == "__main__":

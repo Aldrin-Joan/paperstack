@@ -11,6 +11,8 @@ Tools exposed:
 Run with:
   python -m src.mcp_server
 """
+
+# pragma: no cover
 from __future__ import annotations
 
 import asyncio
@@ -43,6 +45,7 @@ server = Server("arxiv-mcp")
 
 
 # ── Tool Definitions ──────────────────────────────────────────────────────────
+
 
 @server.list_tools()
 async def list_tools() -> list[types.Tool]:
@@ -159,6 +162,7 @@ async def list_tools() -> list[types.Tool]:
 
 # ── Tool Handlers ─────────────────────────────────────────────────────────────
 
+
 @server.call_tool()
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextContent]:
     log.info("Tool called", tool=name, args=arguments)
@@ -193,7 +197,11 @@ async def _handle_search_arxiv(args: dict) -> list[types.TextContent]:
     results = await _arxiv_client.search(query=query, max_results=max_results)
 
     if not results:
-        payload = {"message": "No papers found for the given query.", "query": query, "results": []}
+        payload = {
+            "message": "No papers found for the given query.",
+            "query": query,
+            "results": [],
+        }
     else:
         payload = {
             "query": query,
@@ -223,7 +231,9 @@ async def _handle_download_pdf(args: dict) -> list[types.TextContent]:
     async with PDFFetcher() as fetcher:
         result = await fetcher.download(arxiv_id, force=force)
 
-    return [types.TextContent(type="text", text=json.dumps(result.model_dump(), indent=2))]
+    return [
+        types.TextContent(type="text", text=json.dumps(result.model_dump(), indent=2))
+    ]
 
 
 async def _handle_extract_text(args: dict) -> list[types.TextContent]:
@@ -245,7 +255,12 @@ async def _handle_extract_text(args: dict) -> list[types.TextContent]:
             Path(dl_result.local_path).unlink()
             log.info("Temp PDF removed", arxiv_id=arxiv_id, path=dl_result.local_path)
         except Exception as exc:
-            log.warning("Failed to remove temp PDF", arxiv_id=arxiv_id, error=str(exc), path=dl_result.local_path)
+            log.warning(
+                "Failed to remove temp PDF",
+                arxiv_id=arxiv_id,
+                error=str(exc),
+                path=dl_result.local_path,
+            )
 
     # Serialize — omit full_text in response to keep it manageable
     payload = {
@@ -286,7 +301,10 @@ async def _handle_get_paper_context(args: dict) -> list[types.TextContent]:
         dl_result = await fetcher.download(arxiv_id)
 
     if not dl_result.success:
-        payload = {"error": f"PDF download failed: {dl_result.error}", "arxiv_id": arxiv_id}
+        payload = {
+            "error": f"PDF download failed: {dl_result.error}",
+            "arxiv_id": arxiv_id,
+        }
         return [types.TextContent(type="text", text=json.dumps(payload, indent=2))]
 
     # 3. Parse PDF
@@ -298,7 +316,12 @@ async def _handle_get_paper_context(args: dict) -> list[types.TextContent]:
             Path(dl_result.local_path).unlink()
             log.info("Temp PDF removed", arxiv_id=arxiv_id, path=dl_result.local_path)
         except Exception as exc:
-            log.warning("Failed to remove temp PDF", arxiv_id=arxiv_id, error=str(exc), path=dl_result.local_path)
+            log.warning(
+                "Failed to remove temp PDF",
+                arxiv_id=arxiv_id,
+                error=str(exc),
+                path=dl_result.local_path,
+            )
 
     # 4. Build context
     context = _context_builder.build(
@@ -322,6 +345,7 @@ async def _handle_get_paper_context(args: dict) -> list[types.TextContent]:
 
 
 # ── Entry Point ───────────────────────────────────────────────────────────────
+
 
 async def main() -> None:
     log.info("Starting arxiv-mcp server", version="1.0.0")

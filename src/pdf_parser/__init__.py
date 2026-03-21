@@ -7,6 +7,7 @@ Responsibilities:
   - Detect section headers heuristically
   - Return ExtractedPaper with full_text and page breakdown
 """
+
 from __future__ import annotations
 
 import re
@@ -15,16 +16,25 @@ from typing import Optional
 
 import fitz  # PyMuPDF
 
-from src.models import ExtractedPaper, TextChunk, CHUNK_SIZE_TOKENS, CHUNK_OVERLAP_TOKENS
+from src.models import (
+    ExtractedPaper,
+    TextChunk,
+    CHUNK_SIZE_TOKENS,
+    CHUNK_OVERLAP_TOKENS,
+    PDF_MAX_PAGES,
+)
 from src.logger import get_logger
 
 log = get_logger("pdf_parser")
 
 # Common academic section header patterns
 _SECTION_PATTERNS = [
-    re.compile(r"^\d+\.?\s+[A-Z][A-Za-z ]{3,60}$"),          # "1. Introduction"
-    re.compile(r"^[A-Z][A-Z\s]{4,40}$"),                       # "ABSTRACT", "CONCLUSION"
-    re.compile(r"^(?:Abstract|Introduction|Conclusion|References|Appendix|Methodology|Results|Discussion|Related Work|Background|Experiments?|Evaluation)\b", re.IGNORECASE),
+    re.compile(r"^\d+\.?\s+[A-Z][A-Za-z ]{3,60}$"),  # "1. Introduction"
+    re.compile(r"^[A-Z][A-Z\s]{4,40}$"),  # "ABSTRACT", "CONCLUSION"
+    re.compile(
+        r"^(?:Abstract|Introduction|Conclusion|References|Appendix|Methodology|Results|Discussion|Related Work|Background|Experiments?|Evaluation)\b",
+        re.IGNORECASE,
+    ),
 ]
 
 
@@ -84,6 +94,11 @@ class PDFParser:
             raise ValueError(f"PDF has no pages: {pdf_path}")
 
         total_pages = doc.page_count
+        if total_pages > PDF_MAX_PAGES:
+            raise ValueError(
+                f"PDF page count {total_pages} exceeds max allowed {PDF_MAX_PAGES}"
+            )
+
         page_texts: list[str] = []
 
         for page_num in range(total_pages):
@@ -146,6 +161,7 @@ def _chunk_text(text: str) -> list[TextChunk]:
     """
     try:
         import tiktoken
+
         enc = tiktoken.get_encoding("cl100k_base")
 
         def count_tokens(t: str) -> int:
@@ -186,7 +202,9 @@ def _chunk_text(text: str) -> list[TextChunk]:
         return chunks
 
     except Exception as exc:
-        log.warning("tiktoken chunking failed, falling back to char-based", error=str(exc))
+        log.warning(
+            "tiktoken chunking failed, falling back to char-based", error=str(exc)
+        )
         return _chunk_text_chars(text)
 
 

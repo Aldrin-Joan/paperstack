@@ -43,7 +43,8 @@ downloads/
 # Python Environment files
 pip-log.txt
 pip-delete-this-directory.txt
-
+.coverage
 # other
 *.bak
 *.swp
+tests/

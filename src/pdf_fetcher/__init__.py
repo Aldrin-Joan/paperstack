@@ -4,6 +4,7 @@ pdf_fetcher — download arXiv PDFs with retry, error handling, and caching.
 Downloads PDFs to DOWNLOAD_DIR and caches them by arXiv ID to avoid
 redundant network requests.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -18,7 +19,13 @@ from tenacity import (
     before_sleep_log,
 )
 
-from src.models import DownloadResult, DOWNLOAD_DIR, HTTP_TIMEOUT, MAX_RETRIES
+from src.models import (
+    DownloadResult,
+    DOWNLOAD_DIR,
+    HTTP_TIMEOUT,
+    MAX_RETRIES,
+    PDF_MAX_SIZE_MB,
+)
 from src.logger import get_logger
 import logging
 
@@ -31,8 +38,10 @@ _HEADERS = {
 
 def _pdf_path(arxiv_id: str) -> Path:
     """Return local path for a cached PDF."""
+    from src.models import get_download_dir
+
     safe_id = arxiv_id.replace("/", "_")
-    return DOWNLOAD_DIR / f"{safe_id}.pdf"
+    return get_download_dir() / f"{safe_id}.pdf"
 
 
 def _is_cached(arxiv_id: str) -> bool:
@@ -108,9 +117,7 @@ class PDFFetcher:
             try:
                 async with self._client.stream("GET", url) as response:
                     if response.status_code == 404:
-                        raise FileNotFoundError(
-                            f"PDF not found on arXiv (404): {url}"
-                        )
+                        raise FileNotFoundError(f"PDF not found on arXiv (404): {url}")
                     response.raise_for_status()
 
                     content_type = response.headers.get("content-type", "")
@@ -119,6 +126,14 @@ class PDFFetcher:
                         raise ValueError(
                             f"Unexpected content-type '{content_type}' — PDF not ready yet"
                         )
+
+                    content_length = response.headers.get("content-length")
+                    if content_length is not None:
+                        max_bytes = PDF_MAX_SIZE_MB * 1024 * 1024
+                        if int(content_length) > max_bytes:
+                            raise ValueError(
+                                f"PDF too large: {content_length} bytes, max {max_bytes}"
+                            )
 
                     with dest.open("wb") as f:
                         async for chunk in response.aiter_bytes(chunk_size=8192):
@@ -152,6 +167,7 @@ class PDFFetcher:
                 )
                 if attempt < MAX_RETRIES:
                     import asyncio
+
                     await asyncio.sleep(wait)
 
         raise RuntimeError(

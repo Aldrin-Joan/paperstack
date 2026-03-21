@@ -2,6 +2,7 @@
 Centralized structured logging for arxiv-mcp.
 All modules import `get_logger` from here.
 """
+
 import logging
 import sys
 import structlog

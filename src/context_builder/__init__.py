@@ -7,6 +7,7 @@ Produces PaperContext objects containing:
   - Ready-to-use system prompt
   - Suggested summarization prompt
 """
+
 from __future__ import annotations
 
 from src.models import ExtractedPaper, PaperMetadata, PaperContext, TextChunk

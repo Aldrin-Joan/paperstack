@@ -7,6 +7,7 @@ Uses the official `arxiv` Python library and wraps it with:
   - ID detection / validation
   - structured Pydantic output
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -22,6 +23,7 @@ from tenacity import (
     retry_if_exception_type,
 )
 
+from src.cache import get_paper_metadata, set_paper_metadata
 from src.models import (
     Author,
     PaperMetadata,
@@ -67,6 +69,26 @@ def detect_arxiv_id(text: str) -> Optional[str]:
         log.debug("Detected arXiv ID", raw=raw, canonical=canonical)
         return canonical
     return None
+
+
+def validate_arxiv_id_format(arxiv_id: str) -> bool:
+    """Return True if the ID matches allowed arXiv formats."""
+    if not isinstance(arxiv_id, str) or not arxiv_id.strip():
+        return False
+    candidate = arxiv_id.strip()
+    candidate = re.sub(r"^arxiv:", "", candidate, flags=re.IGNORECASE)
+    candidate = re.sub(r"v\d+$", "", candidate, flags=re.IGNORECASE)
+    return bool(_ARXIV_ID_RE.fullmatch(candidate))
+
+
+def normalize_arxiv_id(arxiv_id: str) -> str:
+    """Return canonical arXiv ID (no prefix/version) or raise ValueError."""
+    if not validate_arxiv_id_format(arxiv_id):
+        raise ValueError(f"Invalid arXiv ID format: {arxiv_id}")
+    normalized = arxiv_id.strip()
+    normalized = re.sub(r"^arxiv:", "", normalized, flags=re.IGNORECASE)
+    normalized = re.sub(r"v\d+$", "", normalized, flags=re.IGNORECASE)
+    return normalized
 
 
 def _result_to_metadata(result: arxiv.Result) -> PaperMetadata:
@@ -168,8 +190,15 @@ class ArxivClient:
         Fetch full metadata for a single paper by arXiv ID.
         Returns None if the paper is not found.
         """
-        clean_id = re.sub(r"v\d+$", "", arxiv_id.strip())
+        clean_id = normalize_arxiv_id(arxiv_id)
         log.info("Fetching paper by ID", arxiv_id=clean_id)
+
+        # Try cache first
+        cached = get_paper_metadata(clean_id)
+        if cached is not None:
+            log.info("Paper metadata from cache", arxiv_id=clean_id)
+            return cached
+
         await _rate_limit()
 
         search_obj = arxiv.Search(id_list=[clean_id])
@@ -184,6 +213,8 @@ class ArxivClient:
             return None
 
         meta = _result_to_metadata(results[0])
+        set_paper_metadata(meta)
+
         log.info("Paper fetched", title=meta.title, arxiv_id=meta.arxiv_id)
         return meta
 
