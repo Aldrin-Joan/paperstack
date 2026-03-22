@@ -68,6 +68,17 @@ class DatabaseClient:
             PRIMARY KEY (topic_id, arxiv_id)
         );
 
+        -- Deduplicate existing watched topics to support unique constraint migration.
+        DELETE FROM watched_topics
+        WHERE id NOT IN (
+            SELECT MIN(id)
+            FROM watched_topics
+            GROUP BY query, label
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_watched_topics_query_label
+        ON watched_topics(query, label);
+
         CREATE TABLE IF NOT EXISTS explanations (
             arxiv_id TEXT NOT NULL,
             audience TEXT NOT NULL,
@@ -112,6 +123,14 @@ class DatabaseClient:
         cursor = self.execute(sql, params)
         row = cursor.fetchone()
         return dict(row) if row is not None else None
+
+    def reset(self) -> None:
+        """Reset the database to an empty state (drops row data but keeps schema)."""
+        with self.conn:
+            self.conn.execute("DELETE FROM watched_topic_seen")
+            self.conn.execute("DELETE FROM watched_topics")
+            self.conn.execute("DELETE FROM explanations")
+            self.conn.execute("DELETE FROM reading_list")
 
     def close(self) -> None:
         """Close the SQLite connection."""

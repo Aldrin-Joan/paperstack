@@ -26,6 +26,16 @@ class TopicWatcher:
         if not query or not label:
             raise ValueError("query and label are required")
 
+        existing = self.db.fetchone(
+            "SELECT * FROM watched_topics WHERE query = ? AND label = ?", (query, label)
+        )
+        if existing:
+            return WatcherResult(
+                action="add",
+                topics=[self._row_to_topic(existing)],
+                message="Topic already exists",
+            )
+
         results = await self.arxiv_client.search(query, max_results=1)
         if not results:
             return WatcherResult(

@@ -112,10 +112,18 @@ class ReadingListManager:
 
             existing_notes = existing.get("notes", "") or ""
             combined_notes = existing_notes
-            if notes.strip():
-                if combined_notes:
-                    combined_notes += "\n---\n"
-                combined_notes += notes.strip()
+            new_note = notes.strip()
+
+            if new_note:
+                existing_blocks = [
+                    block.strip()
+                    for block in existing_notes.split("\n---\n")
+                    if block.strip()
+                ]
+                if new_note not in existing_blocks:
+                    if combined_notes:
+                        combined_notes += "\n---\n"
+                    combined_notes += new_note
 
             self.db.execute(
                 """

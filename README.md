@@ -240,6 +240,11 @@ python test_smoke.py
 - `arxiv-mcp` command not found: ensure virtualenv is active and package installed
 - PDF download failure: check network access to `https://arxiv.org/pdf/`
 - Rate-limit errors: lower request frequency or adjust `ARXIV_RATE_LIMIT`
+- Topic duplicates observed after repeated tests: use `DatabaseClient.reset()` on workflow DB and/or `topic_watcher.add` now enforces dedupe by `(query, label)`.
+- Reading list duplicate notes: `ReadingListManager.add` now avoids re-appending identical note blocks.
+- Ollama not available fallback: `_passthrough` now uses arXiv `metadata.abstract` for all explanation fields (what_it_is/problem_solved/how_it_works/why_it_matters/key_result).
+- Dependency pin check: `pip install -r requirements.txt` includes `protobuf==3.20.3` and `urllib3>=2.0.0,<3` to avoid known warning/conflict cases (TensorFlow + ChromaDB `MessageFactory` and Requests `RequestsDependencyWarning`).
+- Smoke harness summary: `scripts/run_all_tools.py` prints final status with count of run/passed/failed tools.
 
 ---
 

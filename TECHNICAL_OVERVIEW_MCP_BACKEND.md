@@ -46,9 +46,15 @@ Root code lives in `src/`:
 
 ### Layer 4 Research Workflows
 - `src/workflows/db.py`: SQLite persistence client and schema for reading list, watched topics, and explanations.
+  - Includes new `DatabaseClient.reset()` to clear persisted workflow tables for clean E2E testing / repeated runs.
+  - Enforces unique index `idx_watched_topics_query_label` to prevent duplicate add.
 - `src/workflows/reading_list.py`: CRUD operations, filtering, stats, and dedupe/merge semantics for a personal reading list.
+  - `add` will now merge notes but avoid appending identical note blocks.
 - `src/workflows/topic_watcher.py`: watchlist topic lifecycle, incremental arXiv delta checks, seen-set management.
+  - `add(query, label)` now checks existing first to avoid duplicate `(query, label)` rows.
 - `src/workflows/explainer.py`: audience-targeted explanation transformer with LLM + passthrough fallback and caching.
+  - `_passthrough` uses `metadata.abstract` for `what_it_is`, `problem_solved`, `how_it_works`, `why_it_matters`, and `key_result` when LLM fails.
+- `scripts/run_all_tools.py`: smoke test harness now reports summary metrics (tools run/passed/failed/status).
 
 Supporting files in root:
 

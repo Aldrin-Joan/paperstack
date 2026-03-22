@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
-from typing import Optional
 
 import fitz  # PyMuPDF
 
@@ -135,21 +134,50 @@ class PDFParser:
         )
 
 
+_TITLE_BLACKLIST_PATTERNS = [
+    re.compile(r"copyright", re.IGNORECASE),
+    re.compile(r"all rights reserved", re.IGNORECASE),
+    re.compile(r"licensed under", re.IGNORECASE),
+    re.compile(r"creative commons", re.IGNORECASE),
+    re.compile(r"arxiv\.org", re.IGNORECASE),
+    re.compile(r"https?://", re.IGNORECASE),
+    re.compile(r"doi:", re.IGNORECASE),
+    re.compile(r"\bthis work (is|\s)is\b", re.IGNORECASE),
+]
+
+
+def _looks_like_title_candidate(line: str) -> bool:
+    if not line:
+        return False
+    if len(line) < 12 or len(line) > 200:
+        return False
+    if any(p.search(line) for p in _TITLE_BLACKLIST_PATTERNS):
+        return False
+    if re.search(r"\b(page|figure|table|report|paper|version)\b", line, re.IGNORECASE):
+        return False
+    if re.match(r"^[\s\d\W]+$", line):
+        return False
+    return True
+
+
 def _extract_title_heuristic(text: str) -> str:
     """
     Attempt to extract the paper title from the first block of text.
     Titles tend to be the longest non-author lines near the top.
     """
     lines = [ln.strip() for ln in text.split("\n") if ln.strip()]
-    # Filter out very short lines (page numbers, single words)
-    candidates = [ln for ln in lines[:15] if 10 < len(ln) < 200]
-    if candidates:
-        # Prefer longer lines that don't look like author lists (no commas)
-        for c in candidates:
-            if "," not in c and not re.match(r"^\d", c):
-                return c
-        return candidates[0]
-    return ""
+    # Filter out lines that are clearly copyright/licensing notices.
+    candidates = [ln for ln in lines[:30] if _looks_like_title_candidate(ln)]
+
+    if not candidates:
+        return ""
+
+    # Prefer line with most words and without commas/author-like patterns.
+    filtered = [c for c in candidates if "," not in c and not re.match(r"^\d", c)]
+    if filtered:
+        return max(filtered, key=lambda s: len(s))
+
+    return max(candidates, key=lambda s: len(s))
 
 
 def _chunk_text(text: str) -> list[TextChunk]:

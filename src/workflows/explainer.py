@@ -151,21 +151,17 @@ class Explainer:
         metadata: PaperMetadata,
         audience: str,
     ) -> ExplanationResult:
+        abstract_source = (metadata.abstract or "").strip() or "No abstract available."
+
         return ExplanationResult(
             arxiv_id=contributions.arxiv_id,
             title=metadata.title,
             audience=audience,
-            what_it_is=contributions.proposed_method
-            or "No proposed method could be extracted.",
-            problem_solved=contributions.core_claim or "Core claim unavailable.",
-            how_it_works=" ".join(contributions.key_results[:2])
-            or "No key results available.",
-            why_it_matters="See key results.",
-            key_result=(
-                contributions.key_results[0]
-                if contributions.key_results
-                else "Not extracted"
-            ),
+            what_it_is=abstract_source,
+            problem_solved=abstract_source,
+            how_it_works=abstract_source,
+            why_it_matters=abstract_source,
+            key_result=abstract_source,
             reading_time_minutes=3,
             generation_method="passthrough",
             generated_at=datetime.now(timezone.utc),

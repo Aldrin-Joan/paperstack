@@ -181,11 +181,65 @@ async def run():
     assert stats.stats["read"] == 1
 
     tw = TopicWatcher(db2, DummyArxivClientForReading())
-    await tw.add("cat:cs.AI", "AI")
+    add_result1 = await tw.add("cat:cs.AI", "AI")
+    assert add_result1.action == "add"
+    assert add_result1.message == "Topic saved"
+
+    add_result2 = await tw.add("cat:cs.AI", "AI")
+    assert add_result2.action == "add"
+    assert add_result2.message == "Topic already exists"
+    assert len(add_result2.topics) == 1
+
     check_res1 = await tw.check()
     assert check_res1.check_results[0].baseline_established
     check_res2 = await tw.check()
     assert not check_res2.check_results[0].baseline_established
+
+    # reset utility should clear all workflow tables
+    db2.reset()
+    post_reset = await tw.list()
+    assert post_reset.topics == []
+
+    after_reset = await tw.check()
+    assert after_reset.check_results == []
+
+    class DummyContributionExtractorNoMethod:
+        async def extract(self, arxiv_id: str, force_refresh: bool = False):
+            return PaperContributions(
+                arxiv_id=arxiv_id,
+                core_claim="",
+                proposed_method="",
+                key_results=[],
+                baselines_compared=[],
+                limitations=[],
+                datasets_used=[],
+                task_domain="General",
+                novelty_type="empirical",
+                extraction_method="heuristic",
+                extracted_at="2026-01-01T00:00:00Z",
+            )
+
+    explainer_baseline = Explainer(
+        db2, DummyContributionExtractorNoMethod(), DummyArxivClientForReading()
+    )
+
+    async def fake_ollama_fail(prompt):
+        raise RuntimeError("Ollama unavailable")
+
+    explainer_baseline._call_ollama = fake_ollama_fail
+    explanation_fallback = await explainer_baseline.explain("1706.03762", "practitioner")
+    assert explanation_fallback.generation_method == "passthrough"
+    assert explanation_fallback.what_it_is == "Abstract"
+    assert explanation_fallback.problem_solved == "Abstract"
+    assert explanation_fallback.how_it_works == "Abstract"
+    assert explanation_fallback.why_it_matters == "Abstract"
+    assert explanation_fallback.key_result == "Abstract"
+
+    # reading list note dedupe should skip repeated identical notes
+    await rl_mgr.add("1706.03762", notes="Smoke test add")
+    await rl_mgr.add("1706.03762", notes="Smoke test add")
+    repeated_entry = await rl_mgr.get("1706.03762")
+    assert repeated_entry.entry.notes.count("Smoke test add") == 1
 
     explainer = Explainer(
         db2, DummyContributionExtractor(), DummyArxivClientForReading()
