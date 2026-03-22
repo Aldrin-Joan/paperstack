@@ -43,6 +43,7 @@ RATE_LIMIT_DELAY = float(
 MAX_RETRIES = int(os.getenv("MAX_RETRIES", "3"))
 HTTP_TIMEOUT = int(os.getenv("HTTP_TIMEOUT", "60"))
 KEEP_PDFS = os.getenv("ARXIV_KEEP_PDFS", "true").lower() in ("1", "true", "yes")
+S2_API_KEY = os.getenv("S2_API_KEY", "").strip()
 
 # Hardened config for script performance and safety
 MAX_CONCURRENT_DOWNLOADS = int(os.getenv("ARXIV_MAX_CONCURRENT_DOWNLOADS", "4"))

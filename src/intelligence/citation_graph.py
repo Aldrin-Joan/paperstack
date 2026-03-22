@@ -23,6 +23,9 @@ from src.models import (
     CitationGraph,
     CitationNode,
 )
+from src.logger import get_logger
+
+log = get_logger("citation_graph")
 
 _BASE_URL = "https://api.semanticscholar.org/graph/v1"
 
@@ -44,6 +47,11 @@ class SemanticScholarClient:
         api_key = S2_API_KEY.strip()
         if api_key:
             headers["x-api-key"] = api_key
+            log.info("Using Semantic Scholar API key from env", source="S2_API_KEY")
+        else:
+            log.warning(
+                "S2_API_KEY not set: using unauthenticated rate limit (1 qps), may hit 429",
+            )
 
         self._client = httpx.AsyncClient(
             base_url=_BASE_URL,

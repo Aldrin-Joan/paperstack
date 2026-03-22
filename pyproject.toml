@@ -29,8 +29,8 @@ dependencies = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/Aldrin-Joan/arXiv-mcp"
-"Repository" = "https://github.com/Aldrin-Joan/arXiv-mcp"
+"Homepage" = "https://github.com/Aldrin-Joan/paperstack"
+"Repository" = "https://github.com/Aldrin-Joan/paperstack"
 
 [project.scripts]
 arxiv-mcp = "src.console:entrypoint"
