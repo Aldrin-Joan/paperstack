@@ -35,14 +35,14 @@ async def run():
     ]
     for text, expected in test_cases:
         result = detect_arxiv_id(text)
-        status = "✓" if result == expected else "✗"
-        print(f"  {status} '{text[:50]}' → {result}")
+        status = "OK" if result == expected else "FAIL"
+        print(f"  [{status}] '{text[:50]}' -> {result}")
 
     # ── 2. Search ─────────────────────────────────────────────────
     print("\n[2] Testing arXiv search...")
     client = ArxivClient()
     results = await client.search("attention transformer NLP", max_results=3)
-    print(f"  ✓ Got {len(results)} results")
+    print(f"  [OK] Got {len(results)} results")
     for r in results:
         print(f"    - [{r.arxiv_id}] {r.title[:60]}...")
 
@@ -50,7 +50,7 @@ async def run():
     print("\n[3] Testing get_by_id...")
     meta = await client.get_by_id("1706.03762")  # Attention is All You Need
     if meta:
-        print(f"  ✓ Title: {meta.title}")
+        print(f"  [OK] Title: {meta.title}")
         print(f"    Authors: {', '.join(a.name for a in meta.authors[:3])}...")
         print(f"    Categories: {meta.categories}")
         print(f"    PDF URL: {meta.pdf_url}")
@@ -62,7 +62,7 @@ async def run():
     async with PDFFetcher() as fetcher:
         dl = await fetcher.download("1706.03762")
     if dl.success:
-        print(f"  ✓ Downloaded: {dl.local_path} ({dl.file_size_bytes // 1024} KB)")
+        print(f"  [OK] Downloaded: {dl.local_path} ({dl.file_size_bytes // 1024} KB)")
     else:
         print(f"  ✗ Download failed: {dl.error}")
         return
@@ -71,7 +71,7 @@ async def run():
     print("\n[5] Testing PDF parsing...")
     parser = PDFParser()
     extracted = parser.parse(dl.local_path, "1706.03762")
-    print(f"  ✓ Pages: {extracted.total_pages}")
+    print(f"  [OK] Pages: {extracted.total_pages}")
     print(f"    Chars: {len(extracted.full_text):,}")
     print(f"    Chunks: {len(extracted.chunks)}")
     print(f"    Total tokens: {sum(c.token_count for c in extracted.chunks):,}")
@@ -81,7 +81,7 @@ async def run():
     print("\n[6] Testing context builder...")
     builder = ContextBuilder()
     context = builder.build(meta, extracted, max_chunks=5)
-    print(f"  ✓ Chunks in context: {context.chunk_count}")
+    print(f"  [OK] Chunks in context: {context.chunk_count}")
     print(f"    Total tokens: {context.total_tokens:,}")
     print(f"    System prompt preview: {context.llm_system_prompt[:100]!r}...")
 
@@ -95,7 +95,7 @@ async def run():
         )
 
     print(
-        f"  ✓ Graph for 1706.03762: {citation_graph.reference_count} refs, {citation_graph.citation_count} total citations"
+        f"  [OK] Graph for 1706.03762: {citation_graph.reference_count} refs, {citation_graph.citation_count} total citations"
     )
 
     # ── 8. Contribution Extraction (Layer 2) ───────────────────────
@@ -104,7 +104,7 @@ async def run():
 
     contributor = ContributionExtractor()
     contributions = await contributor.extract("1706.03762", force_refresh=True)
-    print(f"  ✓ Contribution extraction method: {contributions.extraction_method}")
+    print(f"  [OK] Contribution extraction method: {contributions.extraction_method}")
     print(f"    Core claim: {contributions.core_claim[:120]!r}")
 
     # ── 9. Layer 3 Dev Tooling smoke tests ─────────────────────────
@@ -113,17 +113,17 @@ async def run():
 
     link_report = await LinkExtractor().extract("1706.03762", force_refresh=False)
     print(
-        f"  ✓ Extracted {len(link_report.github_repos)} github repos, official={link_report.has_official_code}"
+        f"  [OK] Extracted {len(link_report.github_repos)} github repos, official={link_report.has_official_code}"
     )
 
     print("\n[10] Testing arxiv_reproducibility_score smoke...")
     from src.devtools.reproducibility_scorer import ReproducibilityScorer
 
     score_report = ReproducibilityScorer().score("1706.03762", force_refresh=False)
-    print(f"  ✓ Reproducibility score {score_report.score}, band={score_report.band}")
+    print(f"  [OK] Reproducibility score {score_report.score}, band={score_report.band}")
     if score_report.score <= 5.0:
         print(
-            "  ⚠️ Score <= 5.0; expected > 5.0 for this paper but may vary with environment"
+            "  [WARN] Score <= 5.0; expected > 5.0 for this paper but may vary with environment"
         )
     # ── 11. Layer 4 workspaces smoke tests ─────────────────────────
     print("\n[11] Testing Layer 4 workflow smoke tests...")
@@ -139,7 +139,7 @@ async def run():
                 arxiv_id=arxiv_id,
                 title="Test",
                 authors=[Author(name="A")],
-                abstract="Abstract",
+                abstract="Sentence one. Sentence two. Sentence three.",
                 categories=["cs.AI"],
                 primary_category="cs.AI",
                 published="2024-01-01T00:00:00Z",
@@ -229,11 +229,11 @@ async def run():
     explainer_baseline._call_ollama = fake_ollama_fail
     explanation_fallback = await explainer_baseline.explain("1706.03762", "practitioner")
     assert explanation_fallback.generation_method == "passthrough"
-    assert explanation_fallback.what_it_is == "Abstract"
-    assert explanation_fallback.problem_solved == "Abstract"
-    assert explanation_fallback.how_it_works == "Abstract"
-    assert explanation_fallback.why_it_matters == "Abstract"
-    assert explanation_fallback.key_result == "Abstract"
+    assert explanation_fallback.what_it_is == "Sentence one. Sentence two. Sentence three."
+    assert explanation_fallback.problem_solved == "Sentence one."
+    assert explanation_fallback.how_it_works == "See abstract."
+    assert explanation_fallback.why_it_matters == "See abstract."
+    assert explanation_fallback.key_result == "Sentence three."
 
     # reading list note dedupe should skip repeated identical notes
     await rl_mgr.add("1706.03762", notes="Smoke test add")
@@ -261,9 +261,9 @@ async def run():
     explanation = await explainer.explain("1706.03762", "practitioner")
     assert explanation.generation_method in {"llm", "passthrough"}
 
-    print("  ✓ Layer 4 workflow smoke checks passed")
+    print("  [OK] Layer 4 workflow smoke checks passed")
     print("\n" + "=" * 60)
-    print("  All smoke tests passed! ✓")
+    print("  All smoke tests passed!")
     print("=" * 60 + "\n")
 
 

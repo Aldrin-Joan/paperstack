@@ -17,10 +17,10 @@ dist/
 output.txt
 # PyPack
 pip-wheel-metadata/
-
+alltools_output.txt
 # Logs
 *.log
-
+smoke_output.txt
 # IDEs
 .vscode/
 .idea/

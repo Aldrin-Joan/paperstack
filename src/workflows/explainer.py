@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Optional
@@ -153,15 +154,19 @@ class Explainer:
     ) -> ExplanationResult:
         abstract_source = (metadata.abstract or "").strip() or "No abstract available."
 
+        sentences = [s.strip() for s in re.split(r"(?<=[\.\!?])\s+", abstract_source) if s.strip()]
+        first_sentence = sentences[0] if sentences else abstract_source
+        last_sentence = sentences[-1] if sentences else abstract_source
+
         return ExplanationResult(
             arxiv_id=contributions.arxiv_id,
             title=metadata.title,
             audience=audience,
             what_it_is=abstract_source,
-            problem_solved=abstract_source,
-            how_it_works=abstract_source,
-            why_it_matters=abstract_source,
-            key_result=abstract_source,
+            problem_solved=first_sentence,
+            how_it_works="See abstract.",
+            why_it_matters="See abstract.",
+            key_result=last_sentence,
             reading_time_minutes=3,
             generation_method="passthrough",
             generated_at=datetime.now(timezone.utc),
