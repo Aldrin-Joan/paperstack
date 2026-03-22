@@ -31,6 +31,10 @@ from src.pdf_parser import PDFParser
 from src.context_builder import ContextBuilder
 from src.logger import get_logger, configure_logging
 from src.models import KEEP_PDFS
+from src.intelligence.citation_graph import SemanticScholarClient
+from src.intelligence.contribution_extractor import ContributionExtractor
+from src.intelligence.paper_comparator import PaperComparator
+from src.intelligence.semantic_index import SemanticIndex
 
 configure_logging("INFO")
 log = get_logger("mcp_server")
@@ -157,6 +161,59 @@ async def list_tools() -> list[types.Tool]:
                 "required": ["arxiv_id"],
             },
         ),
+        types.Tool(
+            name="arxiv_citation_graph",
+            description="Fetch citation graph for an arXiv paper via Semantic Scholar.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "arxiv_id": {"type": "string"},
+                    "max_references": {"type": "integer", "default": 50},
+                    "max_citations": {"type": "integer", "default": 50},
+                    "influential_only": {"type": "boolean", "default": False},
+                },
+                "required": ["arxiv_id"],
+            },
+        ),
+        types.Tool(
+            name="arxiv_extract_contributions",
+            description="Extract structured contributions from an arXiv paper.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "arxiv_id": {"type": "string"},
+                    "force_refresh": {"type": "boolean", "default": False},
+                },
+                "required": ["arxiv_id"],
+            },
+        ),
+        types.Tool(
+            name="arxiv_compare_papers",
+            description="Compare multiple papers by structured contributions and synthesize insights.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "arxiv_ids": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": ["arxiv_ids"],
+            },
+        ),
+        types.Tool(
+            name="arxiv_find_related",
+            description="Find semantically related papers from local index by query_text or query_arxiv_id.",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "query_arxiv_id": {"type": "string"},
+                    "query_text": {"type": "string"},
+                    "top_k": {"type": "integer", "default": 10},
+                },
+                "anyOf": [
+                    {"required": ["query_arxiv_id"]},
+                    {"required": ["query_text"]},
+                ],
+            },
+        ),
     ]
 
 
@@ -178,6 +235,14 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
             return await _handle_extract_text(arguments)
         elif name == "get_paper_context":
             return await _handle_get_paper_context(arguments)
+        elif name == "arxiv_citation_graph":
+            return await _handle_citation_graph(arguments)
+        elif name == "arxiv_extract_contributions":
+            return await _handle_extract_contributions(arguments)
+        elif name == "arxiv_compare_papers":
+            return await _handle_compare_papers(arguments)
+        elif name == "arxiv_find_related":
+            return await _handle_find_related(arguments)
         else:
             raise ValueError(f"Unknown tool: {name}")
 
@@ -188,6 +253,70 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[types.TextCont
             indent=2,
         )
         return [types.TextContent(type="text", text=error_payload)]
+
+
+async def _handle_citation_graph(args: dict[str, Any]) -> list[types.TextContent]:
+    arxiv_id = args.get("arxiv_id", "").strip()
+    if not arxiv_id:
+        return [types.TextContent(type="text", text=json.dumps({"error": "arxiv_id required"}))]
+
+    async with SemanticScholarClient() as client:
+        graph = await client.get_citation_graph(
+            arxiv_id,
+            max_references=int(args.get("max_references", 50)),
+            max_citations=int(args.get("max_citations", 50)),
+            influential_only=bool(args.get("influential_only", False)),
+        )
+
+    return [types.TextContent(type="text", text=json.dumps(graph.model_dump(), indent=2))]
+
+
+async def _handle_extract_contributions(args: dict[str, Any]) -> list[types.TextContent]:
+    arxiv_id = args.get("arxiv_id", "").strip()
+    if not arxiv_id:
+        return [types.TextContent(type="text", text=json.dumps({"error": "arxiv_id required"}))]
+
+    extractor = ContributionExtractor()
+    contributions = await extractor.extract(arxiv_id, force_refresh=bool(args.get("force_refresh", False)))
+
+    return [types.TextContent(type="text", text=json.dumps(contributions.model_dump(), indent=2))]
+
+
+async def _handle_compare_papers(args: dict[str, Any]) -> list[types.TextContent]:
+    arxiv_ids = args.get("arxiv_ids") or []
+    if not isinstance(arxiv_ids, list) or not arxiv_ids:
+        return [types.TextContent(type="text", text=json.dumps({"error": "arxiv_ids required"}))]
+
+    extractor = ContributionExtractor()
+    comparator = PaperComparator(extractor)
+
+    try:
+        report = await comparator.compare(arxiv_ids)
+    except Exception as exc:
+        return [types.TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+
+    return [types.TextContent(type="text", text=json.dumps(report.model_dump(), indent=2))]
+
+
+async def _handle_find_related(args: dict[str, Any]) -> list[types.TextContent]:
+    query_arxiv_id = args.get("query_arxiv_id")
+    query_text = args.get("query_text")
+    top_k = int(args.get("top_k", 10))
+
+    if not query_arxiv_id and not query_text:
+        return [types.TextContent(type="text", text=json.dumps({"error": "query_arxiv_id or query_text required"}))]
+
+    index = SemanticIndex()
+
+    try:
+        if query_arxiv_id:
+            results = index.query_by_paper(query_arxiv_id, top_k=top_k)
+        else:
+            results = index.query_by_text(query_text, top_k=top_k)
+    except Exception as exc:
+        return [types.TextContent(type="text", text=json.dumps({"error": str(exc)}))]
+
+    return [types.TextContent(type="text", text=json.dumps(results.model_dump(), indent=2))]
 
 
 async def _handle_search_arxiv(args: dict) -> list[types.TextContent]:
@@ -221,6 +350,16 @@ async def _handle_get_paper_by_id(args: dict) -> list[types.TextContent]:
     else:
         payload = metadata.model_dump()
 
+    # Non-blocking semantic index side effect
+    try:
+        import asyncio
+
+        asyncio.create_task(
+            SemanticIndex().add_paper(arxiv_id, metadata.title, metadata.abstract, None)
+        )
+    except Exception as exc:
+        log.warning("Semantic index side effect failed", arxiv_id=arxiv_id, error=str(exc))
+
     return [types.TextContent(type="text", text=json.dumps(payload, indent=2))]
 
 
@@ -248,6 +387,16 @@ async def _handle_extract_text(args: dict) -> list[types.TextContent]:
         return [types.TextContent(type="text", text=json.dumps(payload, indent=2))]
 
     extracted = _pdf_parser.parse(dl_result.local_path, arxiv_id)
+
+    # Non-blocking side effect: index to semantic index
+    try:
+        import asyncio
+
+        asyncio.create_task(
+            SemanticIndex().add_paper(arxiv_id, extracted.title, extracted.full_text, None)
+        )
+    except Exception as exc:
+        log.warning("Semantic index side effect failed", arxiv_id=arxiv_id, error=str(exc))
 
     # Remove temporary download if configured to keep PDFs off disk
     if not KEEP_PDFS:

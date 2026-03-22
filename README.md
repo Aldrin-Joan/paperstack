@@ -121,6 +121,10 @@ print(context.summary)
 - `arxiv_fetch_pdf` (download + cache)
 - `arxiv_parse_pdf` (extract text and metadata)
 - `arxiv_build_context` (chunk to LLM-friendly context)
+- `arxiv_citation_graph` (author/paper citation network)
+- `arxiv_extract_contributions` (structured contribution extractor)
+- `arxiv_semantic_index` (semantic similarity index builder/query)
+- `arxiv_compare_papers` (paper comparison report)
 
 Use any MCP-capable client (VS Code MCP extension, custom agent SDK) to connect.
 
@@ -181,6 +185,13 @@ Environment variables:
 - `ARXIV_CACHE_DIR` (default: `./downloads`)
 - `ARXIV_CACHE_TTL` (default: `604800` seconds / 7 days)
 - `ARXIV_RATE_LIMIT` (default: `1` request/sec)
+- `S2_API_KEY` (optional; Semantic Scholar API key for higher rate limits)
+- `OLLAMA_BASE_URL` (default: `http://localhost:11434`)
+- `OLLAMA_MODEL` (default: `mistral`)
+- `SEMANTIC_INDEX_DIR` (default: `${ARXIV_DOWNLOAD_DIR}/semantic_index`)
+- `CITATION_CACHE_TTL` (default: `86400` seconds / 24 hours)
+- `CONTRIBUTION_CACHE_TTL` (default: `604800` seconds / 7 days)
+- `EMBEDDING_MODEL` (default: `sentence-transformers/all-MiniLM-L6-v2`)
 
 Set in shell or via `.env` before running.
 

@@ -1,0 +1,16 @@
+You are a research analyst. Given structured contributions for multiple papers, produce a JSON object matching this schema:
+{
+  "paper_ids": ["..."] ,
+  "paper_titles": {"id": "title"},
+  "shared_task_domain": "...",
+  "dimensions": [{"dimension": "...", "values": {"id": "description"}}],
+  "conflicting_claims": ["..."],
+  "strongest_results": "...",
+  "recommendation": "...",
+  "compared_at": "ISO timestamp"
+}
+
+Include only valid JSON, no extra commentary.
+
+Papers:
+{papers_json}

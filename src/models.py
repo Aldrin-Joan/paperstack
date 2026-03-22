@@ -126,3 +126,92 @@ class DownloadResult(BaseModel):
     file_size_bytes: int
     success: bool
     error: Optional[str] = None
+
+
+class CitationNode(BaseModel):
+    """Citation node model for Semantic Scholar graph results."""
+
+    arxiv_id: Optional[str] = None
+    s2_id: str
+    title: str
+    year: Optional[int] = None
+    citation_count: int
+    is_influential: bool
+
+
+class CitationGraph(BaseModel):
+    """Citation graph for a root paper."""
+
+    root_arxiv_id: str
+    root_title: str
+    references: list[CitationNode]
+    cited_by: list[CitationNode]
+    reference_count: int
+    citation_count: int
+    fetched_at: str
+
+
+class PaperContributions(BaseModel):
+    """Extracted structured contributions for a paper."""
+
+    arxiv_id: str
+    core_claim: str
+    proposed_method: str
+    key_results: list[str]
+    baselines_compared: list[str]
+    limitations: list[str]
+    datasets_used: list[str]
+    task_domain: str
+    novelty_type: str
+    extraction_method: str
+    extracted_at: str
+
+
+class PaperDimension(BaseModel):
+    """Dimension detail for paper comparison."""
+
+    dimension: str
+    values: dict[str, str]
+
+
+class ComparisonReport(BaseModel):
+    """Comparison report across multiple papers."""
+
+    paper_ids: list[str]
+    paper_titles: dict[str, str]
+    shared_task_domain: Optional[str] = None
+    dimensions: list[PaperDimension]
+    conflicting_claims: list[str]
+    strongest_results: str
+    recommendation: str
+    compared_at: str
+
+
+class SimilarPaper(BaseModel):
+    """Semantic similarity candidate paper."""
+
+    arxiv_id: str
+    title: str
+    similarity_score: float
+    year: Optional[int] = None
+    abstract_preview: str
+
+
+class SimilarityResults(BaseModel):
+    """Semantic similarity query result."""
+
+    query_arxiv_id: Optional[str] = None
+    query_text: Optional[str] = None
+    results: list[SimilarPaper]
+    index_size: int
+
+
+# Layer 2 configuration variables
+S2_API_KEY: str = os.getenv("S2_API_KEY", "")
+OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "mistral")
+SEMANTIC_INDEX_DIR: Path = Path(os.getenv("SEMANTIC_INDEX_DIR", str(DOWNLOAD_DIR / "semantic_index"))).expanduser().resolve()
+CITATION_CACHE_TTL: int = int(os.getenv("CITATION_CACHE_TTL", str(86400)))  # 24h in seconds
+CONTRIBUTION_CACHE_TTL: int = int(os.getenv("CONTRIBUTION_CACHE_TTL", str(604800)))  # 7d
+EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2")
+

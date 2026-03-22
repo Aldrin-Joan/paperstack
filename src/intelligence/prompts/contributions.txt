@@ -1,0 +1,16 @@
+You are a research analyst. Given the following academic paper text, extract a structured JSON object.
+
+Return ONLY valid JSON with exactly these keys:
+{
+  "core_claim": "One sentence stating the central thesis or contribution",
+  "proposed_method": "Name and one-sentence description of the method/system/framework proposed",
+  "key_results": ["result 1", "result 2", "result 3"],
+  "baselines_compared": ["baseline 1", "baseline 2"],
+  "limitations": ["limitation 1", "limitation 2"],
+  "datasets_used": ["dataset 1"],
+  "task_domain": "e.g. NLP / Computer Vision / Robotics",
+  "novelty_type": "one of: architectural / algorithmic / empirical / theoretical / systems"
+}
+
+Paper text (title + abstract + first 3000 tokens of body):
+{paper_text}

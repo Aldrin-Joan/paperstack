@@ -84,6 +84,28 @@ async def run():
     print(f"    Total tokens: {context.total_tokens:,}")
     print(f"    System prompt preview: {context.llm_system_prompt[:100]!r}...")
 
+    # ── 7. Citation Graph (Layer 2) ───────────────────────────────
+    print("\n[7] Testing citation graph extraction (Semantic Scholar)...")
+    from src.intelligence.citation_graph import SemanticScholarClient
+
+    async with SemanticScholarClient() as s2_client:
+        citation_graph = await s2_client.get_citation_graph(
+            "1706.03762", max_references=5, max_citations=5
+        )
+
+    print(
+        f"  ✓ Graph for 1706.03762: {citation_graph.reference_count} refs, {citation_graph.citation_count} total citations"
+    )
+
+    # ── 8. Contribution Extraction (Layer 2) ───────────────────────
+    print("\n[8] Testing contribution extraction (LLM + heuristic fallback)...")
+    from src.intelligence.contribution_extractor import ContributionExtractor
+
+    contributor = ContributionExtractor()
+    contributions = await contributor.extract("1706.03762", force_refresh=True)
+    print(f"  ✓ Contribution extraction method: {contributions.extraction_method}")
+    print(f"    Core claim: {contributions.core_claim[:120]!r}")
+
     print("\n" + "=" * 60)
     print("  All smoke tests passed! ✓")
     print("=" * 60 + "\n")

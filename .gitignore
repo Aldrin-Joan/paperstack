@@ -48,3 +48,6 @@ pip-delete-this-directory.txt
 *.bak
 *.swp
 tests/
+layer2
+layer3_devtools
+layer4_workflows
