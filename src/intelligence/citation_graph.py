@@ -120,14 +120,16 @@ class SemanticScholarClient:
         for item in data:
             paper = item.get("citedPaper") or item.get("paper") or {}
             external_ids = paper.get("externalIds", {}) or {}
+            paper_id = paper.get("paperId") or ""
+            citation_count = paper.get("citationCount")
             nodes.append(
                 CitationNode(
                     arxiv_id=external_ids.get("ArXiv") or external_ids.get("arXiv"),
-                    s2_id=paper.get("paperId", ""),
-                    title=paper.get("title", ""),
+                    s2_id=paper_id,
+                    title=paper.get("title") or "",
                     year=paper.get("year"),
-                    citation_count=paper.get("citationCount", 0),
-                    is_influential=paper.get("isInfluential", False),
+                    citation_count=citation_count if citation_count is not None else 0,
+                    is_influential=paper.get("isInfluential") if paper.get("isInfluential") is not None else False,
                 )
             )
 
@@ -147,14 +149,16 @@ class SemanticScholarClient:
         for item in data:
             paper = item.get("citingPaper") or item.get("paper") or {}
             external_ids = paper.get("externalIds", {}) or {}
+            paper_id = paper.get("paperId") or ""
+            citation_count = paper.get("citationCount")
             nodes.append(
                 CitationNode(
                     arxiv_id=external_ids.get("ArXiv") or external_ids.get("arXiv"),
-                    s2_id=paper.get("paperId", ""),
-                    title=paper.get("title", ""),
+                    s2_id=paper_id,
+                    title=paper.get("title") or "",
                     year=paper.get("year"),
-                    citation_count=paper.get("citationCount", 0),
-                    is_influential=paper.get("isInfluential", False),
+                    citation_count=citation_count if citation_count is not None else 0,
+                    is_influential=paper.get("isInfluential") if paper.get("isInfluential") is not None else False,
                 )
             )
 

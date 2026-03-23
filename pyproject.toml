@@ -1,6 +1,6 @@
 [project]
 name = "paperstack-mcp"
-version = "0.1.8"
+version = "0.1.9"
 description = "Model Context Protocol server for arXiv PDF retrieval and LLM context generation."
 readme = "README.md"
 requires-python = ">=3.11"
